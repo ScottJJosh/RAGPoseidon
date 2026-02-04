@@ -1,31 +1,38 @@
 """Module for formatting and saving results in multiple formats."""
 
-import os
 import json
 from datetime import datetime
 from typing import Dict
+from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
+import config
 
 
 class OutputFormatter:
     """Handles saving results in multiple formats."""
 
-    def __init__(self, base_output_dir: str = "outputs"):
+    def __init__(self, base_output_dir: Path = None):
         """Initialize the output formatter.
 
         Args:
-            base_output_dir: Base directory for all outputs
+            base_output_dir: Base directory for all outputs (Path object or None for config default)
         """
+        # Use config default if not provided
+        if base_output_dir is None:
+            base_output_dir = config.OUTPUTS_DIR
+        else:
+            base_output_dir = Path(base_output_dir) if not isinstance(base_output_dir, Path) else base_output_dir
+
         self.base_output_dir = base_output_dir
         self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.output_dir = os.path.join(base_output_dir, f"run_{self.run_timestamp}")
+        self.output_dir = base_output_dir / f"run_{self.run_timestamp}"
 
         # Create output directory
-        os.makedirs(self.output_dir, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def save_all_formats(self, results: Dict[str, dict], metadata: dict = None) -> dict:
         """Save results in JSON and PDF formats, plus prompts file.
@@ -58,7 +65,7 @@ class OutputFormatter:
 
     def _save_json(self, results: Dict[str, dict], metadata: dict = None) -> str:
         """Save results as JSON with chunks."""
-        filepath = os.path.join(self.output_dir, "results.json")
+        filepath = self.output_dir / "results.json"
 
         output = {
             "run_timestamp": self.run_timestamp,
@@ -69,7 +76,7 @@ class OutputFormatter:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
 
-        return filepath
+        return str(filepath)
 
     def _save_pdf(self, results: Dict[str, dict], metadata: dict = None, include_chunks: bool = True) -> str:
         """Save results as PDF with or without chunks.
@@ -83,11 +90,11 @@ class OutputFormatter:
             Path to the saved PDF file
         """
         if include_chunks:
-            filepath = os.path.join(self.output_dir, "results_with_chunks.pdf")
+            filepath = self.output_dir / "results_with_chunks.pdf"
         else:
-            filepath = os.path.join(self.output_dir, "results_answers_only.pdf")
+            filepath = self.output_dir / "results_answers_only.pdf"
 
-        doc = SimpleDocTemplate(filepath, pagesize=letter,
+        doc = SimpleDocTemplate(str(filepath), pagesize=letter,
                                 rightMargin=0.75*inch, leftMargin=0.75*inch,
                                 topMargin=0.75*inch, bottomMargin=0.75*inch)
 
@@ -199,22 +206,22 @@ class OutputFormatter:
             story.append(Spacer(1, 0.2*inch))
 
         doc.build(story)
-        return filepath
+        return str(filepath)
 
     def _save_metadata(self, metadata: dict = None) -> str:
         """Save run metadata as a separate JSON file."""
-        filepath = os.path.join(self.output_dir, "run_metadata.json")
+        filepath = self.output_dir / "run_metadata.json"
 
         meta_info = {
             "run_timestamp": self.run_timestamp,
-            "output_directory": self.output_dir,
+            "output_directory": str(self.output_dir),
             **(metadata or {})
         }
 
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(meta_info, f, indent=2, ensure_ascii=False)
 
-        return filepath
+        return str(filepath)
 
     def _save_prompts(self, results: Dict[str, dict]) -> str:
         """Save all prompts to a text file for use with other LLMs.
@@ -225,7 +232,7 @@ class OutputFormatter:
         Returns:
             Path to the saved prompts file
         """
-        filepath = os.path.join(self.output_dir, "prompts_for_llm.txt")
+        filepath = self.output_dir / "prompts_for_llm.txt"
 
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write("=" * 100 + "\n")
@@ -244,4 +251,4 @@ class OutputFormatter:
                 f.write(f"{prompt}\n\n")
                 f.write(f"{'=' * 100}\n\n")
 
-        return filepath
+        return str(filepath)

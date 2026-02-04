@@ -63,12 +63,15 @@ Answer:"""
 
         return answer, prompt
 
-    def answer_multiple_questions(self, questions: List[str], vector_store) -> dict:
+    def answer_multiple_questions(self, questions: List[str], vector_store,
+                                  company: str = None, quarters: List[str] = None) -> dict:
         """Answer multiple questions using the vector store for retrieval.
 
         Args:
             questions: List of questions to answer
             vector_store: VectorStore instance for retrieving relevant chunks
+            company: Optional company filter
+            quarters: Optional list of quarters to filter by
 
         Returns:
             Dictionary mapping questions to dict with 'answer', 'chunks', and 'prompt' keys
@@ -78,8 +81,22 @@ Answer:"""
         for i, question in enumerate(questions, 1):
             print(f"\nProcessing question {i}/{len(questions)}: {question[:50]}...")
 
+            # Build metadata filter
+            filter_dict = {}
+            if company:
+                filter_dict['company'] = company
+            if quarters and len(quarters) == 1:
+                filter_dict['quarter'] = quarters[0]
+
             # Retrieve relevant chunks
-            relevant_chunks = vector_store.similarity_search(question)
+            relevant_chunks = vector_store.similarity_search(
+                question,
+                filter_dict=filter_dict if filter_dict else None
+            )
+
+            # Post-filter for multiple quarters if needed
+            if quarters and len(quarters) > 1:
+                relevant_chunks = [doc for doc in relevant_chunks if doc.metadata.get('quarter') in quarters]
 
             # Generate answer and get the full prompt
             answer, prompt = self.answer_question(question, relevant_chunks)

@@ -1,11 +1,20 @@
 """Main RAG pipeline for analyzing earnings call transcripts."""
 
-import os
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
 import json
-from document_processor import DocumentProcessor
-from vector_store import VectorStore
-from qa_system import QASystem
-from output_formatter import OutputFormatter
+import argparse
+import config
+import os
+from src.document_processor import DocumentProcessor
+from src.vector_store import VectorStore
+from src.qa_system import QASystem
+from src.output_formatter import OutputFormatter
 
 
 def load_questions(questions_file: str) -> list:
@@ -34,43 +43,114 @@ def load_questions(questions_file: str) -> list:
 
 def main():
     """Run the RAG pipeline."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Earnings Transcript RAG System - Batch Question Answering',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # List available transcripts
+  python main.py --list-available
+
+  # Analyze CVS Q3 and Q4 2024
+  python main.py --company CVS --quarters "Q3 2024" "Q4 2024"
+
+  # Rebuild vector store
+  python main.py --rebuild
+        """
+    )
+    parser.add_argument('--company', type=str, required=False,
+                       help='Company to analyze (REQUIRED for batch analysis)')
+    parser.add_argument('--quarters', type=str, nargs=2, metavar=('Q1', 'Q2'),
+                       help='Exactly two quarters to compare (REQUIRED for batch analysis)')
+    parser.add_argument('--list-available', action='store_true',
+                       help='List available industries, companies, and quarters')
+    parser.add_argument('--rebuild', action='store_true',
+                       help='Rebuild vector store from transcripts')
+    args = parser.parse_args()
+
     print("=== Earnings Transcript RAG System ===\n")
 
-    # Define transcript files
-    transcript_files = [
-        ("transcripts/cvs_Q3.txt", {"quarter": "Q3 2024", "company": "CVS"}),
-        ("transcripts/cvs_Q4.txt", {"quarter": "Q4 2024", "company": "CVS"}),
-    ]
+    # Discover all transcript files from folder structure
+    doc_processor = DocumentProcessor()
+    transcript_files = doc_processor.discover_transcripts()  # Uses config.TRANSCRIPTS_DIR
+
+    # Handle list-available command
+    if args.list_available:
+        if transcript_files:
+            metadata = doc_processor.get_available_metadata(transcript_files)
+            print("Available transcripts:\n")
+            print(f"Industries: {', '.join(metadata['industries'])}")
+            print(f"Companies:  {', '.join(metadata['companies'])}")
+            print(f"Quarters:   {', '.join(metadata['quarters'])}")
+            print(f"Years:      {', '.join(metadata['years'])}")
+            print(f"\nTotal: {len(transcript_files)} transcript files found")
+        else:
+            print("No transcripts found in transcripts/ directory.")
+            print("Expected structure: transcripts/industry/company/quarter_year.txt")
+        return
+
+    # For batch analysis, require company and exactly 2 quarters
+    if not args.rebuild:
+        if not args.company:
+            print("Error: --company is required for batch analysis")
+            print("Use --list-available to see available companies")
+            print("Or use --rebuild to rebuild the vector store")
+            return
+
+        if not args.quarters or len(args.quarters) != 2:
+            print("Error: Exactly 2 quarters are required for batch analysis")
+            print("Example: --quarters \"Q3 2024\" \"Q4 2024\"")
+            print("Use --list-available to see available quarters")
+            return
+
+    # Initialize vector store
+    vector_store = VectorStore()
 
     # Check if we should create a new vector store or load existing
-    rebuild_store = input("Rebuild vector store from transcripts? (y/n): ").lower() == 'y'
+    if args.rebuild:
+        rebuild_store = True
+    else:
+        rebuild_store = input("Rebuild vector store from transcripts? (y/n): ").lower() == 'y'
 
     # Initialize components
     print("\nInitializing components...")
-    doc_processor = DocumentProcessor()
-    vector_store = VectorStore()
     qa_system = QASystem()
     output_formatter = OutputFormatter()
+
+    # Display filter settings
+    if args.company and args.quarters:
+        print("\nAnalysis scope:")
+        print(f"  Company:  {args.company}")
+        print(f"  Quarters: {', '.join(args.quarters)}")
+        print()
 
     total_chunks = 0
     if rebuild_store:
         print("\nProcessing transcripts...")
 
-        # Check if transcript files exist
+        if not transcript_files:
+            print("\nWARNING: No transcript files found!")
+            print("Expected structure: transcripts/industry/company/quarter_year.txt")
+            print("Example: transcripts/Healthcare/CVS/Q3_2024.txt")
+            return
+
+        # Check if files exist
         existing_files = [(path, meta) for path, meta in transcript_files if os.path.exists(path)]
 
         if not existing_files:
-            print("\nWARNING: No transcript files found!")
-            print("Please create a 'transcripts' directory and add your transcript files.")
-            print("Expected files:")
-            for path, meta in transcript_files:
-                print(f"  - {path}")
+            print("\nWARNING: Found transcript paths but files don't exist!")
+            print("Please check your file paths.")
             return
+
+        print(f"Found {len(existing_files)} transcript files:")
+        for path, meta in existing_files:
+            print(f"  - {meta['industry']}/{meta['company']}/{meta['quarter']}")
 
         # Process transcripts
         chunks = doc_processor.process_transcripts(existing_files)
         total_chunks = len(chunks)
-        print(f"Created {total_chunks} chunks from {len(existing_files)} transcripts")
+        print(f"\nCreated {total_chunks} chunks from {len(existing_files)} transcripts")
 
         # Create vector store
         print("\nCreating vector store with embeddings...")
@@ -97,7 +177,12 @@ def main():
     # Answer questions
     print("\nAnswering questions using RAG system...")
     print("(This may take a few minutes depending on your system)\n")
-    results = qa_system.answer_multiple_questions(questions, vector_store)
+    results = qa_system.answer_multiple_questions(
+        questions,
+        vector_store,
+        company=args.company,
+        quarters=args.quarters
+    )
 
     # Display results
     print("\n" + "="*80)
@@ -116,7 +201,11 @@ def main():
     metadata = {
         "transcripts": [meta for _, meta in transcript_files],
         "total_chunks": total_chunks,
-        "num_questions": len(questions)
+        "num_questions": len(questions),
+        "filters": {
+            "company": args.company,
+            "quarters": args.quarters
+        }
     }
 
     # Save results in multiple formats

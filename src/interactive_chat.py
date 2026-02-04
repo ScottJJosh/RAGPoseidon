@@ -10,27 +10,47 @@ import config
 class CreditAnalystChatbot:
     """Interactive chatbot that answers questions about transcripts with concise, cited responses."""
 
-    def __init__(self, vector_store, llm_model: str = None):
+    def __init__(self, vector_store, llm_model: str = None, industry: str = None,
+                 companies: List[str] = None, quarters: List[str] = None):
         """Initialize the chatbot.
 
         Args:
             vector_store: VectorStore instance for retrieving relevant chunks
             llm_model: Name of the Ollama LLM model to use
+            industry: Optional industry filter
+            companies: Optional list of companies to filter by (max 2)
+            quarters: Optional list of quarters to filter by
         """
         self.vector_store = vector_store
         self.llm_model = llm_model or config.LLM_MODEL
         self.llm = Ollama(model=self.llm_model)
         self.conversation_history = []
+        self.industry = industry
+        self.companies = companies or []
+        self.quarters = quarters or []
 
-        # Analyst system prompt
-        self.system_prompt = """You are a financial analyst. Answer questions directly using only the provided transcript information.
+        # Build analyst system prompt with filter info
+        filter_info = []
+        if self.industry:
+            filter_info.append(f"Industry: {self.industry}")
+        if self.companies:
+            filter_info.append(f"Companies: {', '.join(self.companies)}")
+        if self.quarters:
+            filter_info.append(f"Quarters: {', '.join(self.quarters)}")
+
+        scope_text = f" (Analyzing: {'; '.join(filter_info)})" if filter_info else ""
+
+        self.system_prompt = f"""You are a financial analyst{scope_text}. Answer questions directly using only the provided transcript information.
 
 Rules:
 - Give concise, factual answers
-- Always cite the source: [Company Quarter] at the start of each fact
+- Always cite the source with paragraph number: [Company Quarter ¶N] at the start of each fact
 - Include specific numbers, metrics, and quotes when available
+- Use the paragraph numbers (¶1, ¶2, etc.) shown in the context
 - If the information isn't in the transcripts, say "Not found in provided transcripts"
-- No unnecessary analysis or commentary unless explicitly asked"""
+- No unnecessary analysis or commentary unless explicitly asked
+
+Example citation: [CVS Q3 2024 ¶5] Revenue increased 8% to $95B..."""
 
         # Create prompt template for chat
         self.prompt_template = PromptTemplate(
@@ -75,21 +95,47 @@ Answer concisely with citations in [Company Quarter] format:"""
             List of relevant document chunks
         """
         k = k or config.TOP_K_CHUNKS
-        return self.vector_store.similarity_search(query, k=k)
+
+        # Build metadata filter for single-value filters
+        filter_dict = {}
+        if self.industry:
+            filter_dict['industry'] = self.industry
+
+        # Handle single company
+        if self.companies and len(self.companies) == 1:
+            filter_dict['company'] = self.companies[0]
+
+        # Handle single quarter
+        if self.quarters and len(self.quarters) == 1:
+            filter_dict['quarter'] = self.quarters[0]
+
+        # Retrieve with filter (only single-value filters)
+        results = self.vector_store.similarity_search(query, k=k * 2, filter_dict=filter_dict if filter_dict else None)
+
+        # Post-filter for multiple companies
+        if self.companies and len(self.companies) > 1:
+            results = [doc for doc in results if doc.metadata.get('company') in self.companies]
+
+        # Post-filter for multiple quarters
+        if self.quarters and len(self.quarters) > 1:
+            results = [doc for doc in results if doc.metadata.get('quarter') in self.quarters]
+
+        # Limit to k results after post-filtering
+        return results[:k]
 
     def _format_context(self, chunks: List[Document]) -> str:
-        """Format retrieved chunks into context string.
+        """Format retrieved chunks into context string with paragraph numbers.
 
         Args:
             chunks: List of retrieved document chunks
 
         Returns:
-            Formatted context string
+            Formatted context string with paragraph numbers
         """
         context_parts = []
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks, 1):
             source_info = (f"[{chunk.metadata.get('company', 'Unknown')} "
-                          f"{chunk.metadata.get('quarter', 'Unknown')}]")
+                          f"{chunk.metadata.get('quarter', 'Unknown')} ¶{idx}]")
             context_parts.append(f"{source_info}\n{chunk.page_content}")
 
         return "\n\n---\n\n".join(context_parts)
@@ -130,15 +176,16 @@ Answer concisely with citations in [Company Quarter] format:"""
             "chunks_used": len(relevant_chunks)
         })
 
-        # Prepare chunk metadata for display
+        # Prepare chunk metadata for display with paragraph numbers
         chunk_info = [
             {
+                "paragraph": idx,
                 "content": chunk.page_content,
                 "source": chunk.metadata.get('source', 'Unknown'),
                 "quarter": chunk.metadata.get('quarter', 'Unknown'),
                 "company": chunk.metadata.get('company', 'Unknown')
             }
-            for chunk in relevant_chunks
+            for idx, chunk in enumerate(relevant_chunks, 1)
         ]
 
         return {

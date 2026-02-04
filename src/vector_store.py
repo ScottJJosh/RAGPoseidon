@@ -70,12 +70,13 @@ class VectorStore:
             return 0
         return self.vectorstore._collection.count()
 
-    def similarity_search(self, query: str, k: int = None) -> List[Document]:
+    def similarity_search(self, query: str, k: int = None, filter_dict: dict = None) -> List[Document]:
         """Search for most relevant document chunks.
 
         Args:
             query: Query text to search for
             k: Number of top results to return
+            filter_dict: Optional metadata filter (e.g., {"company": "CVS", "quarter": "Q3 2024"})
 
         Returns:
             List of most relevant document chunks
@@ -84,7 +85,12 @@ class VectorStore:
             raise ValueError("Vector store not initialized. Call create_vectorstore or load_vectorstore first.")
 
         k = k or config.TOP_K_CHUNKS
-        results = self.vectorstore.similarity_search(query, k=k)
+
+        if filter_dict:
+            results = self.vectorstore.similarity_search(query, k=k, filter=filter_dict)
+        else:
+            results = self.vectorstore.similarity_search(query, k=k)
+
         return results
 
     def add_documents(self, documents: List[Document]) -> None:
@@ -98,3 +104,34 @@ class VectorStore:
 
         self.vectorstore.add_documents(documents)
         print(f"Added {len(documents)} new document chunks to vector store")
+
+    def get_available_metadata(self) -> dict:
+        """Get all unique industries, companies, and quarters in the vector store.
+
+        Returns:
+            Dictionary with 'industries', 'companies', and 'quarters' lists
+        """
+        if not self.vectorstore:
+            raise ValueError("Vector store not initialized.")
+
+        # Get all documents
+        all_docs = self.vectorstore.get()
+
+        industries = set()
+        companies = set()
+        quarters = set()
+
+        if all_docs and 'metadatas' in all_docs:
+            for metadata in all_docs['metadatas']:
+                if 'industry' in metadata:
+                    industries.add(metadata['industry'])
+                if 'company' in metadata:
+                    companies.add(metadata['company'])
+                if 'quarter' in metadata:
+                    quarters.add(metadata['quarter'])
+
+        return {
+            'industries': sorted(list(industries)),
+            'companies': sorted(list(companies)),
+            'quarters': sorted(list(quarters))
+        }
