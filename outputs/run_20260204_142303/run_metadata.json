@@ -1,0 +1,47 @@
+{
+  "run_timestamp": "20260204_142303",
+  "output_directory": "/home/jjscott1532/RIStuff/TranscriptQuestions/outputs/run_20260204_142303",
+  "transcripts": [
+    {
+      "industry": "Healthcare",
+      "company": "CVS",
+      "quarter": "Q3 2024",
+      "year": "2024",
+      "quarter_code": "Q3",
+      "source": "/home/jjscott1532/RIStuff/TranscriptQuestions/transcripts/Healthcare/CVS/Q3_2024.txt"
+    },
+    {
+      "industry": "Healthcare",
+      "company": "CVS",
+      "quarter": "Q4 2024",
+      "year": "2024",
+      "quarter_code": "Q4",
+      "source": "/home/jjscott1532/RIStuff/TranscriptQuestions/transcripts/Healthcare/CVS/Q4_2024.txt"
+    },
+    {
+      "industry": "Healthcare",
+      "company": "DVA",
+      "quarter": "Q3 2024",
+      "year": "2024",
+      "quarter_code": "Q3",
+      "source": "/home/jjscott1532/RIStuff/TranscriptQuestions/transcripts/Healthcare/DVA/Q3_2024.txt"
+    },
+    {
+      "industry": "Healthcare",
+      "company": "DVA",
+      "quarter": "Q4 2024",
+      "year": "2024",
+      "quarter_code": "Q4",
+      "source": "/home/jjscott1532/RIStuff/TranscriptQuestions/transcripts/Healthcare/DVA/Q4_2024.txt"
+    }
+  ],
+  "total_chunks": 297,
+  "num_questions": 10,
+  "filters": {
+    "company": "DVA",
+    "quarters": [
+      "Q3 2024",
+      "Q4 2024"
+    ]
+  }
+}
