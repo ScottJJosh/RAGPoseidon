@@ -1,0 +1,7 @@
+langchain
+langchain-community
+chromadb
+ollama
+python-dotenv
+reportlab
+python-docx

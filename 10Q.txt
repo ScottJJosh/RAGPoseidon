@@ -1,0 +1,21 @@
+Using the earnings call transcript, answer the following ten questions. Put the answers into a paragraph or two in a conversational tone. 
+
+1 What phrases were consistent with the previous quarter commentary?
+
+2. What phrases were different from the previous quarter commentary?
+
+3. Was guidance revised? Why?
+
+4. What did the company say was going well?
+
+5. What did the company say needed improvement?
+
+6. What are announcements or goals stated for the next quarter?
+
+7. How does the company expect to improve Sales and Margins?
+
+8. How does the company expect to improve Free Cash Flow and what is Capex expected to be over the next quarter or next 12 months?
+
+9. What's the company's assessment of the consumer and economy?
+
+10. Was there mentions around restructuring or distress? -Layoffs, dispositions, refinancing challenges, etc.

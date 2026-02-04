@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(./venv/bin/pip install:*)",
+      "Bash(ollama list:*)",
+      "Bash(./venv/bin/python:*)",
+      "Bash(chmod:*)",
+      "Bash(printf:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

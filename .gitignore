@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Vector store
+chroma_db/
+
+# Results
+transcript_analysis_results.json
+outputs/
+
+# Transcripts (optional - uncomment if you don't want to track transcript files)
+# transcripts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
